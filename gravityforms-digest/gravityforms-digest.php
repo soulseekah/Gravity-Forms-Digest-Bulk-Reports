@@ -7,7 +7,6 @@
 		Author URI: http://codeseekah.com
 	*/
 
-
 	class GFDigestNotifications {
 		private static $instance = null;
 		private static $textdomain = 'gravitforms-digest';
@@ -27,10 +26,6 @@
 		public function bootstrap() {
 			add_action( 'plugins_loaded', array( $this, 'early_init' ) );
 			add_action( 'gf_digest_send_notifications', array( $this, 'send_notifications' ) );
-
-			add_action( 'init', function() {
-				$this->send_notifications( array( 1 ) );
-			} );
 
 			/* Attach hooks and other early initialization */
 			if ( !isset( $_GET['page']) || $_GET['page'] != 'gf_edit_forms' )
