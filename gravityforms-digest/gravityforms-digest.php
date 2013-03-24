@@ -66,18 +66,50 @@
 
 			$digest_emails = isset( $_POST['form_notification_digest_emails'] ) ? $_POST['form_notification_digest_emails'] : '';
 			$digest_interval = isset( $_POST['form_notification_digest_interval'] ) ? $_POST['form_notification_digest_interval'] : '';
+			$digest_group = isset( $_POST['form_notification_digest_group'] ) ? $_POST['form_notification_digest_group'] : '';
 
 			$form['notification']['enable_digest'] = true;
 			$form['notification']['digest_emails'] = array_map( 'trim', explode( ',', $digest_emails ) );
-			
-			RGFormsModel::update_form_meta( $form_id, $form );
 
-			/* Schedule the next event */
-			if ( $digest_interval != $form['notification']['digest_interval'] ) {
-				wp_clear_scheduled_hook( 'gf_digest_send_notifications' );
-				wp_schedule_event( apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ), $digest_interval, 'gf_digest_send_notifications', array( $form_id ) );
-				$form['notification']['digest_interval'] = $digest_interval;
+			/* Schedule the next event if necessary */
+			if ( $digest_group ) {
+				/* Let's get all the forms in the digest group to find out
+				whether there is already a digest group on schedule */
+				foreach( RGFormsModel::get_forms( true ) as $existing_form ) {
+					if ( $existing_form->id == $form_id )
+						continue; // It is I!
+					$existing_form = RGFormsModel::get_form_meta( $existing_form->id );
+
+					if ( !isset( $existing_form['notification']['enable_digest'] ) )
+						continue; // Meh, not interesting
+					if ( !isset( $existing_form['notification']['digest_group'] ) )
+						continue; // Meh, not interesting
+					if ( !isset( $existing_form['notification']['digest_interval'] ) )
+						continue; // Meh, not interesting
+
+					if ( $existing_form['notification']['digest_group'] == $digest_group )
+						if ( $existing_form['notification']['digest_interval'] == $digest_interval ) {
+							$scheduled = true; // We'll combine the two, they'll go along
+							/* And let's also clear any hooks we may have left behind */
+							wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
+							break;
+						}
+				}
 			}
+
+			if ( !isset( $scheduled ) ) {
+				/* We have to reschedule if group or interval have changed */
+				if ( ( !isset( $form['notification']['digest_group'] ) || $form['notification']['digest_group'] != $digest_group )
+					|| ( !isset( $form['notification']['digest_interval'] ) || $form['notification']['digest_interval'] != $digest_interval ) ) {
+					/* Remove any old event schedules */
+					wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
+					wp_schedule_event( apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ), $digest_interval, 'gf_digest_send_notifications', array( $form_id ) );
+				}
+			}
+			
+			$form['notification']['digest_interval'] = $digest_interval;
+			$form['notification']['digest_group'] = $digest_group;
+			RGFormsModel::update_form_meta( $form_id, $form );
 		}
 
 		public function add_notification_settings( $out ) {
@@ -92,6 +124,7 @@
 			$digest_emails = isset( $form['notification']['digest_emails'] ) ? $form['notification']['digest_emails'] : false;
 			$digest_emails = ( $digest_emails ) ? implode( ',', $digest_emails ) : '';
 			$digest_interval = isset( $form['notification']['digest_interval'] ) ? $form['notification']['digest_interval'] : false;
+			$digest_group = isset( $form['notification']['digest_group'] ) ? $form['notification']['digest_group'] : false;
 
 			?>
 				<div id="submitdiv" class="stuffbox">
@@ -112,7 +145,10 @@
 									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $digest_interval, $value ); ?>><?php echo esc_html( $schedule['display'] ); ?></option>
 								<?php endforeach; ?>
 							</select>
-							<p>Once the interval is changed, the first report will be sent out in an hour and then at the set intervals. This behavior can be changed by hooking into the <code>gf_digest_schedule_next</code> filter.</p>
+							<p>Once the interval is changed, the first report will be sent out in an hour and then at the set intervals. This behavior can be changed by hooking into the <code>gf_digest_schedule_next</code> filter. Behavior may vary for forms grouped together, report will be sent out whenever the first or only group was scheduled.</p>
+							<label for="form_notification_digest_group">Group<a href="#" onclick="return false;" class="tooltip tooltip_notification_digest_group" tooltip="<h6>Digest Group</h6>We will try and group forms with the same interval into one e-mail, leave blank for no grouping. Can be a number or keyword.">(?)</a></label>
+							<input type="text" name="form_notification_digest_group" id="form_notification_digest_group" value="<?php echo esc_attr( $digest_group ); ?>">
+							<p>Note that digest grouping will only work for members of a group with same intervals set. For example, forms with hourly digests in group 'sales' will be bound together, daily digests in group 'sales' will be bound together. So if you want to see two form digests in one e-mail set the same interval and the same group for the two forms. You may also receive out of band reports once after having changed groups or intervals.</p>
 						</div>
 					</div>
 				</div>
@@ -126,34 +162,82 @@
 			$form_id = $args[0];
 
 			$form = RGFormsModel::get_form_meta( $form_id );
-			$last_sent = isset( $form['notification']['digest_last_sent'] ) ? $form['notification']['digest_last_sent'] : 0;
 
-			/* Retrieve form entries newer than the last sent ID */
-			global $wpdb;
-			$leads_table = RGFormsModel::get_lead_table_name();
-			$leads = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $leads_table WHERE form_id = %d AND id > %d AND status = 'active'", $form_id, $last_sent ) );
+			$digest_group = isset( $form['notification']['digest_group'] ) ? $form['notification']['digest_group'] : false;
+			$digest_interval = isset( $form['notification']['digest_interval'] ) ? $form['notification']['digest_interval'] : false;
 
-			if ( !sizeof( $leads ) ) return; // Nothing to report on
+			$forms = array( $form['id'] => $form );
+			if ( $digest_group ) {
+				/* We may want to send out a group of forms in one e-mail if possible */
+				foreach( RGFormsModel::get_forms( true ) as $existing_form ) {
+					if ( $existing_form->id == $form_id )
+						continue; // It is I!
+					$existing_form = RGFormsModel::get_form_meta( $existing_form->id );
 
-			$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
-			$report .= "Form name:\t" . $form['title'] . "\n\n";
+					if ( !isset( $existing_form['notification']['enable_digest'] ) )
+						continue; // Meh, not interesting
+					if ( !isset( $existing_form['notification']['digest_group'] ) )
+						continue; // Meh, not interesting
+					if ( !isset( $existing_form['notification']['digest_interval'] ) )
+						continue; // Meh, not interesting
 
-			foreach ( $leads as $lead ) {
-				$report .= "\n--\n";
-				$report .= "Submitted on:\t" . $lead->date_created . "\n";
-
-				$lead_data = RGFormsModel::get_lead( $lead->id );
-				foreach ( $lead_data as $index => $data ) {
-					if ( !is_numeric( $index ) || !$data ) continue;
-					$field = RGFormsModel::get_field( $form, $index );
-					$report .= "{$field['label']}:\t$data\n";
+					if ( $existing_form['notification']['digest_group'] == $digest_group )
+						if ( $existing_form['notification']['digest_interval'] == $digest_interval ) {
+							$forms[$existing_form['id']]= $existing_form; // Add them all
+						}
 				}
 			}
-			$form['notification']['digest_last_sent'] = $lead->id;
-			RGFormsModel::update_form_meta( $form_id, $form );
 
-			foreach ( $form['notification']['digest_emails'] as $email ) {
-				wp_mail( $email, $form['title'] . ' Report', $report );
+			$emails = array();
+
+			/* Gather all the leads and update the last_sent counters */
+			foreach ( $forms as $i => $form ) {
+				$last_sent = isset( $form['notification']['digest_last_sent'] ) ? $form['notification']['digest_last_sent'] : 0;
+
+				/* Retrieve form entries newer than the last sent ID */
+				global $wpdb;
+				$leads_table = RGFormsModel::get_lead_table_name();
+				$leads = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $leads_table WHERE form_id = %d AND id > %d AND status = 'active';", $form['id'], $last_sent ) );
+
+				if ( !sizeof( $leads ) ) continue; // Nothing to report on
+
+				/* Update the reported id counter */
+				$form['notification']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
+				RGFormsModel::update_form_meta( $form['id'], $form );
+
+				$forms[$i]['leads'] = $leads;
+
+				/* Also make a lookup table of all e-mail addresses to forms */
+				foreach ( $form['notification']['digest_emails'] as $email ) {
+					if ( !isset( $emails[$email] ) ) $emails[$email] = array();
+					$emails[$email] []= $form['id'];
+				}
+			}
+
+			/* Now, let's try and mail stuff */
+			foreach ( $emails as $email => $form_ids ) {
+				$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
+
+				$names = array();
+				foreach ( $form_ids as $form_id ) {
+					$form = $forms[$form_id];
+					$report .= "\nForm name:\t" . $form['title'] . "\n";
+					$names []= $form['title'];
+
+					foreach ( $form['leads'] as $lead ) {
+						$lead_data = RGFormsModel::get_lead( $lead->id );
+						$report .= "\n--\n";
+						$report .= "Submitted on:\t" . $lead->date_created . "\n";
+
+						foreach ( $lead_data as $index => $data ) {
+							if ( !is_numeric( $index ) || !$data ) continue;
+							$field = RGFormsModel::get_field( $form, $index );
+							$report .= "{$field['label']}:\t$data\n";
+						}
+					}
+				}
+
+				wp_mail( $email, 'Form Digest: ' . implode( ', ', $names ), $report );
 			}
 		}
 	}
