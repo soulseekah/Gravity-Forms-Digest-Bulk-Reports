@@ -230,7 +230,7 @@
 				if ( !sizeof( $leads ) ) continue; // Nothing to report on
 
 				/* Update the reported id counter */
-				$form['notification']['digest_last_sent'] = 0; // $leads[sizeof($leads) - 1]->id;
+				$form['notification']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
 				RGFormsModel::update_form_meta( $form['id'], $form );
 
 				$forms[$i]['leads'] = $leads;
@@ -314,4 +314,6 @@
 			}
 		}
 	}
+
+	if ( defined( 'WP_CONTENT_DIR' ) ) new GFDigestNotifications; /* initialize */
 ?>
