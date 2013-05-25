@@ -230,7 +230,7 @@
 				if ( !sizeof( $leads ) ) continue; // Nothing to report on
 
 				/* Update the reported id counter */
-				$form['notification']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
+				$form['notification']['digest_last_sent'] = 0; // $leads[sizeof($leads) - 1]->id;
 				RGFormsModel::update_form_meta( $form['id'], $form );
 
 				$forms[$i]['leads'] = $leads;
@@ -244,31 +244,74 @@
 
 			/* Now, let's try and mail stuff */
 			foreach ( $emails as $email => $form_ids ) {
-				$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
 
-				$names = array();
-				foreach ( $form_ids as $form_id ) {
-					$form = $forms[$form_id];
-					$report .= "\nForm name:\t" . $form['title'] . "\n";
-					$names []= $form['title'];
+				if ( defined( 'GF_DIGESTS_AS_CSV' ) && GF_DIGESTS_AS_CSV ) {
+					/* CSV e-mails */
+					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
+					$report .= 'See CSV attachment';
 
-					foreach ( $form['leads'] as $lead ) {
-						$lead_data = RGFormsModel::get_lead( $lead->id );
-						$report .= "\n--\n";
-						$report .= "Submitted on:\t" . $lead->date_created . "\n";
+					$csv_attachment = tempnam( sys_get_temp_dir(), '' );
+					$csv = fopen( $csv_attachment, 'w' );
 
-						foreach ( $lead_data as $index => $data ) {
-							if ( !is_numeric( $index ) || !$data ) continue;
-							$field = RGFormsModel::get_field( $form, $index );
-							$report .= "{$field['label']}:\t$data\n";
+					foreach ( $form_ids as $form_id ) {
+						$form = $forms[$form_id];
+
+						fputcsv( $csv, array( 'Form: ' . $form['title'] . ' (#' . $form_id . ')' ) );
+
+						$headers = array( 'Date Submitted' );
+						$index = 1;
+						while ( $field = RGFormsModel::get_field( $form, $index++ ) )
+							if ( $field['label'] ) $headers []= $field['label'];
+						fputcsv( $csv, $headers );
+
+						foreach ( $form['leads'] as $lead ) {
+							$data = array();
+
+							$lead_data = rgformsmodel::get_lead( $lead->id );
+							$data []= $lead->date_created;
+
+							foreach ( $lead_data as $index => $_data ) {
+								if ( !is_numeric( $index ) || !$_data ) continue;
+								$data []= $_data;
+							}
+
+							fputcsv( $csv, $data );
+						}
+
+						fputcsv( $csv, array( '--' ) ); /* new line */
+					}
+
+					fclose( $csv );
+					$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
+					rename( $csv_attachment, $new_csv_attachment );
+					
+					wp_mail( $email, 'Form Digest (CSV): ' . implode( ', ', $names ), $report, null, array( $new_csv_attachment ) );
+					unlink( $new_csv_attachment );
+				} else {
+					/* Regular e-mails */
+					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
+
+					$names = array();
+					foreach ( $form_ids as $form_id ) {
+						$form = $forms[$form_id];
+						$report .= "\nForm name:\t" . $form['title'] . "\n";
+						$names []= $form['title'];
+
+						foreach ( $form['leads'] as $lead ) {
+							$lead_data = rgformsmodel::get_lead( $lead->id );
+							$report .= "\n--\n";
+							$report .= "submitted on:\t" . $lead->date_created . "\n";
+
+							foreach ( $lead_data as $index => $data ) {
+								if ( !is_numeric( $index ) || !$data ) continue;
+								$field = rgformsmodel::get_field( $form, $index );
+								$report .= "{$field['label']}:\t$data\n";
+							}
 						}
 					}
+					wp_mail( $email, 'Form Digest: ' . implode( ', ', $names ), $report );
 				}
-
-				wp_mail( $email, 'Form Digest: ' . implode( ', ', $names ), $report );
 			}
 		}
 	}
-
-	if ( defined( 'WP_CONTENT_DIR' ) ) new GFDigestNotifications; /* initialize */
 ?>
