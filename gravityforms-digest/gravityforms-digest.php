@@ -31,18 +31,41 @@
 			if ( !isset( $_GET['page']) || $_GET['page'] != 'gf_edit_forms' )
 				return; // Nothing else to do, we're not on the setting page
 
-			if ( !isset( $_GET['view'] ) || $_GET['view'] != 'notification' )
+			if ( !isset( $_GET['view'] ) || ( $_GET['view'] != 'notification' && $_GET['view'] != 'settings' ) )
 				return; // Same as above, nothing to be done
 
 			add_action( 'init', array( $this, 'init' ) );
-
-			/* Add a new meta box to the settings; use `gform_notification_ui_settings` in 1.7 */
-			add_filter( 'gform_save_notification_button', array( $this, 'add_notification_settings' ) );
+			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
 		}
 
 		public function early_init() {
 			/* Load languages if available */
 			load_plugin_textdomain( self::$textdomain, false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+		}
+
+		public function plugins_loaded() {
+			/* Add a new meta box to the settings; use `gform_notification_ui_settings` in 1.7 */
+			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
+				add_action( 'gform_form_settings_page_digests', array( $this, 'show_notification_settings' ) );
+				add_filter( 'gform_form_settings_menu', array( $this, 'add_notification_settings_tab' ) );
+				return;
+			}
+			add_filter( 'gform_save_notification_button', array( $this, 'add_notification_settings' ) );
+		}
+
+		public function add_notification_settings_tab( $tabs ) {
+			$tabs []= array( 'name' => 'digests', 'label' => __( 'Notification Digest', self::$textdomain ), 'query' => array( 'nid' => null ) );
+			return $tabs;
+		}
+
+		public function show_notification_settings() {
+			/* This is a GF 1.7+ UI */
+			
+			GFFormSettings::page_header();
+			echo '<form method="post">';
+			echo $this->add_notification_settings( '' );
+			echo '<input type="submit" id="gform_save_settings" name="save" value="Update" class="button-primary gfbutton"></form>';
+			GFFormSettings::page_footer();
 		}
 
 		public function init() {
@@ -67,7 +90,7 @@
 			$digest_emails = isset( $_POST['form_notification_digest_emails'] ) ? $_POST['form_notification_digest_emails'] : '';
 			$digest_interval = isset( $_POST['form_notification_digest_interval'] ) ? $_POST['form_notification_digest_interval'] : '';
 			$digest_group = isset( $_POST['form_notification_digest_group'] ) ? $_POST['form_notification_digest_group'] : '';
-
+			
 			$form['notification']['enable_digest'] = true;
 			$form['notification']['digest_emails'] = array_map( 'trim', explode( ',', $digest_emails ) );
 
@@ -110,6 +133,11 @@
 			$form['notification']['digest_interval'] = $digest_interval;
 			$form['notification']['digest_group'] = $digest_group;
 			RGFormsModel::update_form_meta( $form_id, $form );
+
+			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
+				/* In 1.7 there seems to be an issue with saving */
+				GFFormsModel::flush_current_forms();
+			}
 		}
 
 		public function add_notification_settings( $out ) {
