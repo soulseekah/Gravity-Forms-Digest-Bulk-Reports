@@ -74,6 +74,14 @@
 		}
 
 		private function process_post_request() {
+
+			if ( !current_user_can( 'manage_options' ) ) {
+				wp_die( __('Cheatin&#8217; uh?') );
+			}
+
+			if ( !isset( $_POST['form_notification_enable_digest'] ) )
+				return; // Wrong screen
+
 			$form_id = isset( $_GET['id'] ) ? $_GET['id'] : null;
 			if ( !$form_id ) return; // Not supposed to be here
 
@@ -81,9 +89,19 @@
 			if ( !$form ) return; // Nuh-uh
 
 			/* Process the settings bit by bit */
-			if ( !isset( $_POST['form_notification_enable_digest'] ) ) {
-				$form['notification']['enable_digest'] = false;
+			if ( !$_POST['form_notification_enable_digest'] ) {
+				$form['digests']['enable_digest'] = false;
+
+				if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
+					/* Seems like 1.7 really messed up the meta structure */
+					unset( $form['notifications'] );
+					unset( $form['confirmations'] );
+				}
 				RGFormsModel::update_form_meta( $form_id, $form );
+				if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
+					/* In 1.7 there seems to be an issue with saving */
+					GFFormsModel::flush_current_forms();
+				}
 				return; // Nothing of interest here, move on
 			}
 
@@ -91,8 +109,8 @@
 			$digest_interval = isset( $_POST['form_notification_digest_interval'] ) ? $_POST['form_notification_digest_interval'] : '';
 			$digest_group = isset( $_POST['form_notification_digest_group'] ) ? $_POST['form_notification_digest_group'] : '';
 			
-			$form['notification']['enable_digest'] = true;
-			$form['notification']['digest_emails'] = array_map( 'trim', explode( ',', $digest_emails ) );
+			$form['digests']['enable_digest'] = true;
+			$form['digests']['digest_emails'] = array_map( 'trim', explode( ',', $digest_emails ) );
 
 			/* Schedule the next event if necessary */
 			if ( $digest_group ) {
@@ -103,15 +121,15 @@
 						continue; // It is I!
 					$existing_form = RGFormsModel::get_form_meta( $existing_form->id );
 
-					if ( !isset( $existing_form['notification']['enable_digest'] ) )
+					if ( !isset( $existing_form['digests']['enable_digest'] ) )
 						continue; // Meh, not interesting
-					if ( !isset( $existing_form['notification']['digest_group'] ) )
+					if ( !isset( $existing_form['digests']['digest_group'] ) )
 						continue; // Meh, not interesting
-					if ( !isset( $existing_form['notification']['digest_interval'] ) )
+					if ( !isset( $existing_form['digests']['digest_interval'] ) )
 						continue; // Meh, not interesting
 
-					if ( $existing_form['notification']['digest_group'] == $digest_group )
-						if ( $existing_form['notification']['digest_interval'] == $digest_interval ) {
+					if ( $existing_form['digests']['digest_group'] == $digest_group )
+						if ( $existing_form['digests']['digest_interval'] == $digest_interval ) {
 							$scheduled = true; // We'll combine the two, they'll go along
 							/* And let's also clear any hooks we may have left behind */
 							wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
@@ -122,16 +140,22 @@
 
 			if ( !isset( $scheduled ) ) {
 				/* We have to reschedule if group or interval have changed */
-				if ( ( !isset( $form['notification']['digest_group'] ) || $form['notification']['digest_group'] != $digest_group )
-					|| ( !isset( $form['notification']['digest_interval'] ) || $form['notification']['digest_interval'] != $digest_interval ) ) {
+				if ( ( !isset( $form['digests']['digest_group'] ) || $form['digests']['digest_group'] != $digest_group )
+					|| ( !isset( $form['digests']['digest_interval'] ) || $form['digests']['digest_interval'] != $digest_interval ) ) {
 					/* Remove any old event schedules */
 					wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
 					wp_schedule_event( apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ), $digest_interval, 'gf_digest_send_notifications', array( $form_id ) );
 				}
 			}
 			
-			$form['notification']['digest_interval'] = $digest_interval;
-			$form['notification']['digest_group'] = $digest_group;
+			$form['digests']['digest_interval'] = $digest_interval;
+			$form['digests']['digest_group'] = $digest_group;
+
+			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
+				/* Seems like 1.7 really messed up the meta structure */
+				unset( $form['notifications'] );
+				unset( $form['confirmations'] );
+			}
 			RGFormsModel::update_form_meta( $form_id, $form );
 
 			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
@@ -148,11 +172,11 @@
 
 			$form = RGFormsModel::get_form_meta( $form_id );
 
-			$is_digest_enabled = isset( $form['notification']['enable_digest'] ) ? $form['notification']['enable_digest'] : false;
-			$digest_emails = isset( $form['notification']['digest_emails'] ) ? $form['notification']['digest_emails'] : false;
+			$is_digest_enabled = isset( $form['digests']['enable_digest'] ) ? $form['digests']['enable_digest'] : false;
+			$digest_emails = isset( $form['digests']['digest_emails'] ) ? $form['digests']['digest_emails'] : false;
 			$digest_emails = ( $digest_emails ) ? implode( ',', $digest_emails ) : '';
-			$digest_interval = isset( $form['notification']['digest_interval'] ) ? $form['notification']['digest_interval'] : false;
-			$digest_group = isset( $form['notification']['digest_group'] ) ? $form['notification']['digest_group'] : false;
+			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
+			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
 
 			?>
 				<div id="submitdiv" class="stuffbox">
@@ -191,8 +215,8 @@
 
 			$form = RGFormsModel::get_form_meta( $form_id );
 
-			$digest_group = isset( $form['notification']['digest_group'] ) ? $form['notification']['digest_group'] : false;
-			$digest_interval = isset( $form['notification']['digest_interval'] ) ? $form['notification']['digest_interval'] : false;
+			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
+			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 
 			$forms = array( $form['id'] => $form );
 			if ( $digest_group ) {
@@ -202,15 +226,15 @@
 						continue; // It is I!
 					$existing_form = RGFormsModel::get_form_meta( $existing_form->id );
 
-					if ( !isset( $existing_form['notification']['enable_digest'] ) )
+					if ( !isset( $existing_form['digests']['enable_digest'] ) )
 						continue; // Meh, not interesting
-					if ( !isset( $existing_form['notification']['digest_group'] ) )
+					if ( !isset( $existing_form['digests']['digest_group'] ) )
 						continue; // Meh, not interesting
-					if ( !isset( $existing_form['notification']['digest_interval'] ) )
+					if ( !isset( $existing_form['digests']['digest_interval'] ) )
 						continue; // Meh, not interesting
 
-					if ( $existing_form['notification']['digest_group'] == $digest_group )
-						if ( $existing_form['notification']['digest_interval'] == $digest_interval ) {
+					if ( $existing_form['digests']['digest_group'] == $digest_group )
+						if ( $existing_form['digests']['digest_interval'] == $digest_interval ) {
 							$forms[$existing_form['id']]= $existing_form; // Add them all
 						}
 				}
@@ -220,7 +244,7 @@
 
 			/* Gather all the leads and update the last_sent counters */
 			foreach ( $forms as $i => $form ) {
-				$last_sent = isset( $form['notification']['digest_last_sent'] ) ? $form['notification']['digest_last_sent'] : 0;
+				$last_sent = isset( $form['digests']['digest_last_sent'] ) ? $form['digests']['digest_last_sent'] : 0;
 
 				/* Retrieve form entries newer than the last sent ID */
 				global $wpdb;
@@ -230,13 +254,19 @@
 				if ( !sizeof( $leads ) ) continue; // Nothing to report on
 
 				/* Update the reported id counter */
-				$form['notification']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
+				$form['digests']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
+
+				if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
+					/* Seems like 1.7 really messed up the meta structure */
+					unset( $form['notifications'] );
+					unset( $form['confirmations'] );
+				}
 				RGFormsModel::update_form_meta( $form['id'], $form );
 
 				$forms[$i]['leads'] = $leads;
 
 				/* Also make a lookup table of all e-mail addresses to forms */
-				foreach ( $form['notification']['digest_emails'] as $email ) {
+				foreach ( $form['digests']['digest_emails'] as $email ) {
 					if ( !isset( $emails[$email] ) ) $emails[$email] = array();
 					$emails[$email] []= $form['id'];
 				}
