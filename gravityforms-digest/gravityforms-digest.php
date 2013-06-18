@@ -130,22 +130,19 @@
 
 					if ( $existing_form['digests']['digest_group'] == $digest_group )
 						if ( $existing_form['digests']['digest_interval'] == $digest_interval ) {
-							$scheduled = true; // We'll combine the two, they'll go along
-							/* And let's also clear any hooks we may have left behind */
-							wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
-							break;
+							/* The schedule for that form is no longer required, we'll schedule
+							this new one now below, any other ones? */
+							wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $existing_form['id'] ) );
 						}
 				}
 			}
 
-			if ( !isset( $scheduled ) ) {
-				/* We have to reschedule if group or interval have changed */
-				if ( ( !isset( $form['digests']['digest_group'] ) || $form['digests']['digest_group'] != $digest_group )
-					|| ( !isset( $form['digests']['digest_interval'] ) || $form['digests']['digest_interval'] != $digest_interval ) ) {
-					/* Remove any old event schedules */
-					wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
-					wp_schedule_event( apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ), $digest_interval, 'gf_digest_send_notifications', array( $form_id ) );
-				}
+			/* We have to reschedule if group or interval have changed */
+			if ( ( !isset( $form['digests']['digest_group'] ) || $form['digests']['digest_group'] != $digest_group )
+				|| ( !isset( $form['digests']['digest_interval'] ) || $form['digests']['digest_interval'] != $digest_interval ) ) {
+				/* Remove any old event schedules */
+				wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
+				wp_schedule_event( apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ), $digest_interval, 'gf_digest_send_notifications', array( $form_id ) );
 			}
 			
 			$form['digests']['digest_interval'] = $digest_interval;
@@ -215,6 +212,14 @@
 
 			$form = RGFormsModel::get_form_meta( $form_id );
 
+			if ( !$form ) {
+				/* Deleted forms get dumped */
+				wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( $form_id ) );
+				return;
+
+				/* TODO: Figure out how to schedule another group */
+			}
+
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 
@@ -278,14 +283,16 @@
 				if ( defined( 'GF_DIGESTS_AS_CSV' ) && GF_DIGESTS_AS_CSV ) {
 					/* CSV e-mails */
 					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
-					$report .= 'See CSV attachment';
-
 					$csv_attachment = tempnam( sys_get_temp_dir(), '' );
 					$csv = fopen( $csv_attachment, 'w' );
 
+					$from = null; $to = null;
+
+					$names = array();
 					foreach ( $form_ids as $form_id ) {
 						$form = $forms[$form_id];
 
+						$names []= $form['title'];
 						fputcsv( $csv, array( 'Form: ' . $form['title'] . ' (#' . $form_id . ')' ) );
 
 						$headers = array( 'Date Submitted' );
@@ -297,8 +304,13 @@
 						foreach ( $form['leads'] as $lead ) {
 							$data = array();
 
-							$lead_data = rgformsmodel::get_lead( $lead->id );
+							$lead_data = RGFormsModel::get_lead( $lead->id );
 							$data []= $lead->date_created;
+
+							if ( !$from )
+								$from = $lead->date_created;
+							else
+								$to = $lead->date_created;
 
 							foreach ( $lead_data as $index => $_data ) {
 								if ( !is_numeric( $index ) || !$_data ) continue;
@@ -310,6 +322,9 @@
 
 						fputcsv( $csv, array( '--' ) ); /* new line */
 					}
+
+					$report .= 'Contains entries from ' . $from . " to $to\n";
+					$report .= 'See CSV attachment';
 
 					fclose( $csv );
 					$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
@@ -328,13 +343,13 @@
 						$names []= $form['title'];
 
 						foreach ( $form['leads'] as $lead ) {
-							$lead_data = rgformsmodel::get_lead( $lead->id );
+							$lead_data = RGFormsModel::get_lead( $lead->id );
 							$report .= "\n--\n";
 							$report .= "submitted on:\t" . $lead->date_created . "\n";
 
 							foreach ( $lead_data as $index => $data ) {
 								if ( !is_numeric( $index ) || !$data ) continue;
-								$field = rgformsmodel::get_field( $form, $index );
+								$field = RGFormsModel::get_field( $form, $index );
 								$report .= "{$field['label']}:\t$data\n";
 							}
 						}
