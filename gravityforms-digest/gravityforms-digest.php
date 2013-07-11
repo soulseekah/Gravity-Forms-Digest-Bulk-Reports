@@ -8,7 +8,7 @@
 	*/
 
 	class GFDigestNotifications {
-		private static $textdomain = 'gravitforms-digest';
+		private static $textdomain = 'gravityforms-digest';
 		public $m;
 
 		public function __construct() {
