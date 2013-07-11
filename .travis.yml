@@ -19,4 +19,4 @@ before_script:
     - cd - && cd wordpress
 
 script:
-    - phpunit -c ../tests/unit/ --exclude-group invalid
+    - phpunit -c ../tests/
