@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<forms version="1.7.3">
+	<form labelPlacement="top_label" useCurrentUserAsAuthor="1">
+		<title><![CDATA[Test Form]]></title>
+		<description><![CDATA[This is a test form]]></description>
+		<descriptionPlacement><![CDATA[below]]></descriptionPlacement>
+		<button type="text">
+			<text><![CDATA[Submit]]></text>
+		</button>
+		<fields>
+			<field id="1" size="medium" type="text">
+				<label><![CDATA[Name]]></label>
+			</field>
+			<field id="2" type="list" size="medium">
+				<label><![CDATA[List]]></label>
+			</field>
+		</fields>
+		<confirmations>
+			<confirmation id="51c0b832ed8fe" isDefault="1" type="message">
+				<name><![CDATA[Default Confirmation]]></name>
+				<message><![CDATA[Thanks for contacting us! We will get in touch with you shortly.]]></message>
+			</confirmation>
+		</confirmations>
+	</form>
+	<form labelPlacement="top_label" useCurrentUserAsAuthor="1">
+		<title><![CDATA[Help]]></title>
+		<description><![CDATA[Help Us]]></description>
+		<descriptionPlacement><![CDATA[below]]></descriptionPlacement>
+		<button type="text">
+			<text><![CDATA[Submit]]></text>
+		</button>
+		<fields>
+			<field id="1" size="medium" type="text">
+				<label><![CDATA[The Name]]></label>
+			</field>
+			<field id="2" type="text" size="medium">
+				<label><![CDATA[The Day]]></label>
+			</field>
+		</fields>
+	</form>
+</forms>

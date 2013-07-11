@@ -1,0 +1,22 @@
+language: php
+
+php:
+    - 5.3
+    - 5.4
+env:
+    - WP_VERSION=3.4.1 GFVERSION=1.6.12
+    - WP_VERSION=master GFVERSION=1.6.12
+
+    - WP_VERSION=3.4.1 GFVERSION=1.7.3
+    - WP_VERSION=master GFVERSION=1.7.3
+
+before_script:
+    - wget https://raw.github.com/wp-cli/sample-plugin/master/bin/install-wp-tests.sh
+    - export WP_TESTS_DIR=wordpress
+    - bash install-wp-tests.sh wordpress root '' localhost $WP_VERSION
+    - wget "https://codeseekah.com/etc/gravityforms_$GFVERSION.zip" -O /tmp/gravityforms.zip
+	- cd /tmp/wordpress/wp-content/plugins && unzip /tmp/gravityforms.zip
+	- cd - && cd wordpress
+
+script:
+    - phpunit -c ../tests/unit/ --exclude-group invalid
