@@ -3,29 +3,25 @@
 		Plugin Name: Gravity Forms Digest Bulk Reports
 		Author: Gennady Kovshenin
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.1
+		Version: 0.2
 		Author URI: http://codeseekah.com
 	*/
 
 	class GFDigestNotifications {
-		private static $instance = null;
 		private static $textdomain = 'gravitforms-digest';
+		public $m;
 
 		public function __construct() {
-			if ( is_object( self::$instance ) && get_class( self::$instance == __CLASS__ ) )
-				wp_die( __CLASS__.' can have only one instance; won\'t initialize, use '.__CLASS__.'::get_instance()' );
-			self::$instance = $this;
-
 			$this->bootstrap();
 		}
 
-		public static function get_instance() {
-			return ( get_class( self::$instance ) == __CLASS__ ) ? self::$instance : new self;
-		}
-
+		/** Main initialization routines, adding hooks etc. */
 		public function bootstrap() {
 			add_action( 'plugins_loaded', array( $this, 'early_init' ) );
 			add_action( 'gf_digest_send_notifications', array( $this, 'send_notifications' ) );
+
+			register_activation_hook( __FILE__, array( $this, 'activate' ) );
+			register_deactivation_hook( __FILE__, array( $this, 'deactivate' ) );
 
 			/* Attach hooks and other early initialization */
 			if ( !isset( $_GET['page']) || $_GET['page'] != 'gf_edit_forms' )
@@ -36,6 +32,64 @@
 
 			add_action( 'init', array( $this, 'init' ) );
 			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
+		}
+
+		/** Activation housekeeping */
+		public function activate() {
+			$this->reschedule_existing();
+		}
+
+		/** Deactivation, bye-bye */
+		public function deactivate() {
+			$this->remove_schedules();
+		}
+
+		/** Remove all schedules */
+		public function remove_schedules() {
+			$cron = _get_cron_array();
+
+			foreach ( $cron as $timestamp => $schedule ) {
+				if ( !isset( $schedule['gf_digest_send_notifications'] ) )
+					continue;
+
+				unset( $cron[$timestamp]['gf_digest_send_notifications'] );
+				if ( empty( $cron[$timestamp] ) )
+					unset( $cron[$timestamp] );
+			}
+
+			_set_cron_array( $cron );
+		}
+
+		/** Reschedule all existing forms */
+		public function reschedule_existing() {
+			
+			$this->remove_schedules();
+
+			$groups = array();
+			foreach( RGFormsModel::get_forms( true ) as $existing_form ) {
+				$existing_form = RGFormsModel::get_form_meta( $existing_form->id );
+
+				if ( !isset( $existing_form['digests'] ) )
+					continue;
+				if ( !isset( $existing_form['digests']['enable_digest'] ) )
+					continue;
+				if ( !$existing_form['digests']['enable_digest'] )
+					continue;
+				if ( !isset( $existing_form['digests']['digest_interval'] ) )
+					continue;
+				if ( !$existing_form['digests']['digest_interval'] )
+					continue;
+
+				$group = isset( $existing_form['digests']['digest_group'] ) ? $existing_form['digests']['digest_group'] : '';
+				$interval = $existing_form['digests']['digest_interval'];
+
+				if ( !$group || !isset( $groups["$group.$interval"] ) ) {
+					wp_schedule_event( // Schedule only once
+						apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ),
+						$interval, 'gf_digest_send_notifications', array( intval( $existing_form['id'] ) ) );
+					$groups["$group.$interval"] = $existing_form['id'];
+				}
+			}
 		}
 
 		public function early_init() {
@@ -79,7 +133,7 @@
 				wp_die( __('Cheatin&#8217; uh?') );
 			}
 
-			if ( !isset( $_POST['form_notification_enable_digest'] ) )
+			if ( !isset( $_POST['form_notification_digest_screen'] ) )
 				return; // Wrong screen
 
 			$form_id = isset( $_GET['id'] ) ? $_GET['id'] : null;
@@ -89,7 +143,7 @@
 			if ( !$form ) return; // Nuh-uh
 
 			/* Process the settings bit by bit */
-			if ( !$_POST['form_notification_enable_digest'] ) {
+			if ( !isset( $_POST['form_notification_enable_digest'] ) ) {
 				$form['digests']['enable_digest'] = false;
 
 				if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
@@ -102,8 +156,13 @@
 					/* In 1.7 there seems to be an issue with saving */
 					GFFormsModel::flush_current_forms();
 				}
+
+				$this->reschedule_existing();
+
 				return; // Nothing of interest here, move on
 			}
+
+			// TODO: This has to be a function of its own, the tests need it
 
 			$digest_emails = isset( $_POST['form_notification_digest_emails'] ) ? $_POST['form_notification_digest_emails'] : '';
 			$digest_interval = isset( $_POST['form_notification_digest_interval'] ) ? $_POST['form_notification_digest_interval'] : '';
@@ -112,39 +171,6 @@
 			$form['digests']['enable_digest'] = true;
 			$form['digests']['digest_emails'] = array_map( 'trim', explode( ',', $digest_emails ) );
 
-			/* Schedule the next event if necessary */
-			if ( $digest_group ) {
-				/* Let's get all the forms in the digest group to find out
-				whether there is already a digest group on schedule */
-				foreach( RGFormsModel::get_forms( true ) as $existing_form ) {
-					if ( $existing_form->id == $form_id )
-						continue; // It is I!
-					$existing_form = RGFormsModel::get_form_meta( $existing_form->id );
-
-					if ( !isset( $existing_form['digests']['enable_digest'] ) )
-						continue; // Meh, not interesting
-					if ( !isset( $existing_form['digests']['digest_group'] ) )
-						continue; // Meh, not interesting
-					if ( !isset( $existing_form['digests']['digest_interval'] ) )
-						continue; // Meh, not interesting
-
-					if ( $existing_form['digests']['digest_group'] == $digest_group )
-						if ( $existing_form['digests']['digest_interval'] == $digest_interval ) {
-							/* The schedule for that form is no longer required, we'll schedule
-							this new one now below, any other ones? */
-							wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( intval( $existing_form['id'] ) ) );
-						}
-				}
-			}
-
-			/* We have to reschedule if group or interval have changed */
-			if ( ( !isset( $form['digests']['digest_group'] ) || $form['digests']['digest_group'] != $digest_group )
-				|| ( !isset( $form['digests']['digest_interval'] ) || $form['digests']['digest_interval'] != $digest_interval ) ) {
-				/* Remove any old event schedules */
-				wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( intval( $form_id ) ) );
-				wp_schedule_event( apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ), $digest_interval, 'gf_digest_send_notifications', array( intval( $form_id ) ) );
-			}
-			
 			$form['digests']['digest_interval'] = $digest_interval;
 			$form['digests']['digest_group'] = $digest_group;
 
@@ -159,6 +185,8 @@
 				/* In 1.7 there seems to be an issue with saving */
 				GFFormsModel::flush_current_forms();
 			}
+
+			$this->reschedule_existing();
 		}
 
 		public function add_notification_settings( $out ) {
@@ -179,6 +207,7 @@
 				<div id="submitdiv" class="stuffbox">
 					<h3><span class="hndle"><?php _e( 'Notification Digest', self::$textdomain ); ?></span></h3>
 					<div class="inside" style="padding: 10px;">
+						<input type="hidden" name="form_notification_digest_screen" value="true">
 						<input type="checkbox" name="form_notification_enable_digest" id="form_notification_enable_digest" value="1" <?php checked( $is_digest_enabled ); ?> onclick="if(this.checked) {jQuery('#form_notification_digest_container').show('slow');} else {jQuery('#form_notification_digest_container').hide('slow');}"/> <label for="form_notification_enable_digest"><?php _e("Enable digest notifications", self::$textdomain); ?></label>
 
 						<div id="form_notification_digest_container" style="display:<?php echo $is_digest_enabled ? "block" : "none"?>;">
@@ -213,11 +242,10 @@
 			$form = RGFormsModel::get_form_meta( $form_id );
 
 			if ( !$form ) {
-				/* Deleted forms get dumped */
-				wp_clear_scheduled_hook( 'gf_digest_send_notifications', array( intval( $form_id ) ) );
+				// TODO: Yet, groups will only be sent out in the next schedule
+				// TODO: perhaps add a $now = 'group' flag for instant turnaround?
+				$this->reschedule_existing();
 				return;
-
-				/* TODO: Figure out how to schedule another group */
 			}
 
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
@@ -335,7 +363,8 @@
 					rename( $csv_attachment, $new_csv_attachment );
 					
 					wp_mail( $email, 'Form Digest (CSV): ' . implode( ', ', $names ), $report, null, array( $new_csv_attachment ) );
-					unlink( $new_csv_attachment );
+					if ( !defined( 'GF_DIGEST_DOING_TESTS' ) )
+						unlink( $new_csv_attachment );
 				} else {
 					/* Regular e-mails */
 					$report = 'Report generated at ' . date( 'Y-m-d H:i:s' ) . "\n";
@@ -361,8 +390,13 @@
 					wp_mail( $email, 'Form Digest: ' . implode( ', ', $names ), $report );
 				}
 			}
+
+			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
+				/* In 1.7 there seems to be an issue with saving */
+				GFFormsModel::flush_current_forms();
+			}
 		}
 	}
 
-	if ( defined( 'WP_CONTENT_DIR' ) ) new GFDigestNotifications; /* initialize */
+	if ( defined( 'WP_CONTENT_DIR' ) && !defined( 'GF_DIGEST_DOING_TESTS' ) ) new GFDigestNotifications; /* initialize */
 ?>
