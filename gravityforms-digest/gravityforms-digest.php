@@ -18,7 +18,7 @@
 		/** Main initialization routines, adding hooks etc. */
 		public function bootstrap() {
 			add_action( 'plugins_loaded', array( $this, 'early_init' ) );
-			add_action( 'gf_digest_send_notifications', array( $this, 'send_notifications' ) );
+			add_action( 'gf_digest_send_notifications', array( $this, 'send_notifications' ), null, 1 );
 
 			register_activation_hook( __FILE__, array( $this, 'activate' ) );
 			register_deactivation_hook( __FILE__, array( $this, 'deactivate' ) );
@@ -85,18 +85,20 @@
 
 				if ( !$group || !isset( $groups["$group.$interval"] ) ) {
 					wp_schedule_event( // Schedule only once
-						apply_filters( 'gf_digest_schedule_next', time() + 3600, $digest_interval ),
+						apply_filters( 'gf_digest_schedule_next', time() + 3600, $interval ),
 						$interval, 'gf_digest_send_notifications', array( intval( $existing_form['id'] ) ) );
 					$groups["$group.$interval"] = $existing_form['id'];
 				}
 			}
 		}
 
+		/** Early initialization */
 		public function early_init() {
 			/* Load languages if available */
 			load_plugin_textdomain( self::$textdomain, false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
 		}
 
+		/** Early initializtion for admin interface */
 		public function plugins_loaded() {
 			/* Add a new meta box to the settings; use `gform_notification_ui_settings` in 1.7 */
 			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
@@ -107,13 +109,14 @@
 			add_filter( 'gform_save_notification_button', array( $this, 'add_notification_settings' ) );
 		}
 
+		/** Adding a tab in GF 1.7+ */
 		public function add_notification_settings_tab( $tabs ) {
 			$tabs []= array( 'name' => 'digests', 'label' => __( 'Notification Digest', self::$textdomain ), 'query' => array( 'nid' => null ) );
 			return $tabs;
 		}
 
+		/** This is a GF 1.7+ UI */
 		public function show_notification_settings() {
-			/* This is a GF 1.7+ UI */
 			
 			GFFormSettings::page_header();
 			echo '<form method="post">';
@@ -122,11 +125,13 @@
 			GFFormSettings::page_footer();
 		}
 
+		/** Save */
 		public function init() {
 			if ( isset( $_POST['save'] ) )
 				$this->process_post_request();
 		}
 
+		/** Parse save data */
 		private function process_post_request() {
 
 			if ( !current_user_can( 'manage_options' ) ) {
@@ -189,8 +194,8 @@
 			$this->reschedule_existing();
 		}
 
+		/** Add an extra screen to the Notification settings of a Form */
 		public function add_notification_settings( $out ) {
-			/* Add an extra screen to the Notification settings of a Form */
 
 			$form_id = isset( $_GET['id'] ) ? $_GET['id'] : null;
 			if ( !$form_id ) return $out; // Not supposed to be here
@@ -202,6 +207,11 @@
 			$digest_emails = ( $digest_emails ) ? implode( ',', $digest_emails ) : '';
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
+
+			$next = wp_next_scheduled( 'gf_digest_send_notifications', array( intval( $form_id ) ) );
+			if ( $next ) $next = 'next scheduled in ' . ( $next - time() ) . ' seconds';
+			$last = isset( $form['digests']['digest_last_sent'] ) ? $form['digests']['digest_last_sent'] : 0;
+			$last = $last ? 'last sent lead ' . $last : '';
 
 			?>
 				<div id="submitdiv" class="stuffbox">
@@ -227,6 +237,9 @@
 							<label for="form_notification_digest_group">Group<a href="#" onclick="return false;" class="tooltip tooltip_notification_digest_group" tooltip="<h6>Digest Group</h6>We will try and group forms with the same interval into one e-mail, leave blank for no grouping. Can be a number or keyword.">(?)</a></label>
 							<input type="text" name="form_notification_digest_group" id="form_notification_digest_group" value="<?php echo esc_attr( $digest_group ); ?>">
 							<p>Note that digest grouping will only work for members of a group with same intervals set. For example, forms with hourly digests in group 'sales' will be bound together, daily digests in group 'sales' will be bound together. So if you want to see two form digests in one e-mail set the same interval and the same group for the two forms. You may also receive out of band reports once after having changed groups or intervals.</p>
+
+							<code><?php echo $next; ?></code>
+							<code><?php echo $last; ?></code>
 						</div>
 					</div>
 				</div>
@@ -235,10 +248,8 @@
 			return $out;
 		}
 
-		public function send_notifications( $args ) {
-			/* Sends an e-mail out, good stuff */
-			$form_id = $args[0];
-
+		/** Sends an e-mail out, good stuff */
+		public function send_notifications( $form_id ) {
 			$form = RGFormsModel::get_form_meta( $form_id );
 
 			if ( !$form ) {
@@ -398,5 +409,6 @@
 		}
 	}
 
-	if ( defined( 'WP_CONTENT_DIR' ) && !defined( 'GF_DIGEST_DOING_TESTS' ) ) new GFDigestNotifications; /* initialize */
+	if ( defined( 'WP_CONTENT_DIR' ) && !defined( 'GF_DIGEST_DOING_TESTS' ) )
+		new GFDigestNotifications; /* initialize */
 ?>

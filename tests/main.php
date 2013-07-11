@@ -163,7 +163,7 @@
 			$_POST['input_1'] = 'Gary'; $_POST['input_2'] = 'yesterday';
 			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
 
-			$this->digest->send_notifications( array( 2 ) );
+			$this->digest->send_notifications( 2 );
 
 			$form = RGFormsModel::get_form_meta( 2 );
 			$this->assertEquals( $form['digests']['digest_last_sent'], 1 );
@@ -215,7 +215,8 @@
 			/* Enable CSV mode to allow us to parse the body */
 			define( 'GF_DIGESTS_AS_CSV', true );
 
-			$this->digest->send_notifications( array( 1 ) );
+			/* Test the correct cron call */
+			do_action_ref_array( 'gf_digest_send_notifications', array( 1 ) );
 
 			$form = RGFormsModel::get_form_meta( 1 );
 			$this->assertEquals( $form['digests']['digest_last_sent'], 1 );
