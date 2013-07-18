@@ -21,7 +21,7 @@ mkdir -p $WORKING_DIR
 
 cd $WORKING_DIR
 
-wget -nv -O wordpress.tar.gz https://github.com/WordPress/WordPress/tarball/3.4.1
+wget -nv -O wordpress.tar.gz https://github.com/WordPress/WordPress/tarball/3.5.2
 mkdir wordpress
 tar --strip-components=1 -zxmf wordpress.tar.gz -C wordpress
 svn co --ignore-externals --quiet http://unit-tests.svn.wordpress.org/trunk/ wordpress_tests

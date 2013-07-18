@@ -5,9 +5,11 @@ php:
     - 5.4
 env:
     - WP_VERSION=3.4.1 GFVERSION=1.6.12
+    - WP_VERSION=3.5.2 GFVERSION=1.6.12
     - WP_VERSION=master GFVERSION=1.6.12
 
     - WP_VERSION=3.4.1 GFVERSION=1.7.3
+    - WP_VERSION=3.5.2 GFVERSION=1.7.3
     - WP_VERSION=master GFVERSION=1.7.3
 
 before_script:
