@@ -3,7 +3,7 @@
 		Plugin Name: Gravity Forms Digest Bulk Reports
 		Author: Gennady Kovshenin
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.2
+		Version: 0.2.1
 		Author URI: http://codeseekah.com
 	*/
 
@@ -373,7 +373,15 @@
 					$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
 					rename( $csv_attachment, $new_csv_attachment );
 					
-					wp_mail( $email, 'Form Digest (CSV): ' . implode( ', ', $names ), $report, null, array( $new_csv_attachment ) );
+					wp_mail(
+						$email,
+						apply_filters(
+							'gf_digest_email_subject',
+							'Form Digest Report (CSV): ' . implode( ', ', $names ),
+							$names, array( $from, $to ), $new_csv_attachment ),
+						$report, null, array( $new_csv_attachment )
+					);
+
 					if ( !defined( 'GF_DIGEST_DOING_TESTS' ) )
 						unlink( $new_csv_attachment );
 				} else {
@@ -386,10 +394,17 @@
 						$report .= "\nForm name:\t" . $form['title'] . "\n";
 						$names []= $form['title'];
 
+						$from = null; $to = null;
+
 						foreach ( $form['leads'] as $lead ) {
 							$lead_data = RGFormsModel::get_lead( $lead->id );
 							$report .= "\n--\n";
 							$report .= "submitted on:\t" . $lead->date_created . "\n";
+
+							if ( !$from )
+								$from = $lead->date_created;
+							else
+								$to = $lead->date_created;
 
 							foreach ( $lead_data as $index => $data ) {
 								if ( !is_numeric( $index ) || !$data ) continue;
@@ -398,7 +413,18 @@
 							}
 						}
 					}
-					wp_mail( $email, 'Form Digest: ' . implode( ', ', $names ), $report );
+
+					if ( !$to )
+						$to = $from;
+
+					wp_mail(
+						$email,
+						apply_filters(
+							'gf_digest_email_subject',
+							'Form Digest Report: ' . implode( ', ', $names ),
+							$names, array( $from, $to ), null ),
+						$report, null, array( $new_csv_attachment )
+					);
 				}
 			}
 
