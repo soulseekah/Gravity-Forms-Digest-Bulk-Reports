@@ -18,7 +18,7 @@ before_script:
     - wget https://raw.github.com/wp-cli/sample-plugin/master/bin/install-wp-tests.sh
     - export WP_TESTS_DIR=wordpress
     - bash install-wp-tests.sh wordpress root '' localhost $WP_VERSION
-    - cd wordpress && wget http://core.trac.wordpress.org/raw-attachment/ticket/24800/24800.2.diff"
+    - cd wordpress && wget "http://core.trac.wordpress.org/raw-attachment/ticket/24800/24800.2.diff"
     - patch -p0 < 24800.2.diff # patch temporary tables creation/drops
     - wget "http://codeseekah.com/etc/gravityforms_$GFVERSION.zip" -O /tmp/gravityforms.zip
     - cd /tmp/wordpress/wp-content/plugins && unzip /tmp/gravityforms.zip
