@@ -423,7 +423,7 @@
 							'gf_digest_email_subject',
 							'Form Digest Report: ' . implode( ', ', $names ),
 							$names, array( $from, $to ), null ),
-						$report, null, array( $new_csv_attachment )
+						$report
 					);
 				}
 			}
