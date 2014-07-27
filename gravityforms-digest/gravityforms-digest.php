@@ -237,11 +237,12 @@
 							<label for="form_notification_digest_group">Group<a href="#" onclick="return false;" class="tooltip tooltip_notification_digest_group" tooltip="<h6>Digest Group</h6>We will try and group forms with the same interval into one e-mail, leave blank for no grouping. Can be a number or keyword.">(?)</a></label>
 							<input type="text" name="form_notification_digest_group" id="form_notification_digest_group" value="<?php echo esc_attr( $digest_group ); ?>">
 							<p>Note that digest grouping will only work for members of a group with same intervals set. For example, forms with hourly digests in group 'sales' will be bound together, daily digests in group 'sales' will be bound together. So if you want to see two form digests in one e-mail set the same interval and the same group for the two forms. You may also receive out of band reports once after having changed groups or intervals.</p>
-							<input type="checkbox" name="form_notification_digest_report_always" id="form_notification_digest_report_always" value="1" <?php checked( $digest_report_always ); ?> /> <label for="form_notification_digest_report_always"><?php _e("Generate digest report even if there are no new entries.", self::$textdomain); ?></label>
-							<br>
-							<br>
-							<code><?php echo $next; ?></code>
-							<code><?php echo $last; ?></code>
+							<input type="checkbox" name="form_notification_digest_report_always" id="form_notification_digest_report_always" value="1" <?php checked( $digest_report_always ); ?> />
+							<label for="form_notification_digest_report_always"><?php _e( 'Generate digest report even if there are no new entries.', self::$textdomain ); ?></label>
+							<p>
+								<?php if ( $next ): ?><code><?php echo esc_html( $next ); ?></code><?php endif; ?>
+								<?php if ( $last ): ?><code><?php echo esc_html( $last ); ?></code><?php endif; ?>
+							</p>
 						</div>
 					</div>
 				</div>
@@ -298,14 +299,15 @@
 				$leads_table = RGFormsModel::get_lead_table_name();
 				$leads = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $leads_table WHERE form_id = %d AND id > %d AND status = 'active';", $form['id'], $last_sent ) );
 
-				if ( !sizeof( $leads ) ){
-					if(!$digest_report_always){
+				if ( !sizeof( $leads ) ) {
+					if( !$digest_report_always ) {
 						continue; // Nothing to report on
 					}
 				} else {
 					/* Update the reported id counter */
 					$form['digests']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
 				}
+
 				if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
 					/* Seems like 1.7 really messed up the meta structure */
 					unset( $form['notifications'] );
@@ -347,23 +349,28 @@
 
 						fputcsv( $csv, $headers );
 
-						foreach ( $form['leads'] as $lead ) {
-							$data = array();
+						if ( !$form['leads'] ) {
+							/* No new entries (but user has opted to receive digests always) */
+							fputcsv( $csv, array( __( 'No new entries.', self::$textdomain ) ) );
+						} else {
+							foreach ( $form['leads'] as $lead ) {
+								$data = array();
 
-							$lead_data = RGFormsModel::get_lead( $lead->id );
-							$data []= $lead->date_created;
+								$lead_data = RGFormsModel::get_lead( $lead->id );
+								$data []= $lead->date_created;
 
-							if ( !$from )
-								$from = $lead->date_created;
-							else
-								$to = $lead->date_created;
+								if ( !$from )
+									$from = $lead->date_created;
+								else
+									$to = $lead->date_created;
 
-							foreach( $form['fields'] as $field ) {
-								if ( !$field['label'] ) continue;
-								$data []= RGFormsModel::get_lead_field_value( $lead_data, $field );
+								foreach( $form['fields'] as $field ) {
+									if ( !$field['label'] ) continue;
+									$data []= RGFormsModel::get_lead_field_value( $lead_data, $field );
+								}
+
+								fputcsv( $csv, $data );
 							}
-
-							fputcsv( $csv, $data );
 						}
 
 						fputcsv( $csv, array( '--' ) ); /* new line */
@@ -402,27 +409,27 @@
 
 						$from = null; $to = null;
 
-						foreach ( $form['leads'] as $lead ) {
-							$lead_data = RGFormsModel::get_lead( $lead->id );
+						if ( !$form['leads'] ) {
+							/* No new entries (but user has opted to receive digests always) */
+							$report .= __( 'No new entries.', self::$textdomain );
 							$report .= "\n--\n";
-							$report .= "submitted on:\t" . $lead->date_created . "\n";
+						} else {
+							foreach ( $form['leads'] as $lead ) {
+								$lead_data = RGFormsModel::get_lead( $lead->id );
+								$report .= "\n--\n";
+								$report .= "submitted on:\t" . $lead->date_created . "\n";
 
-							if ( !$from )
-								$from = $lead->date_created;
-							else
-								$to = $lead->date_created;
+								if ( !$from )
+									$from = $lead->date_created;
+								else
+									$to = $lead->date_created;
 
-							foreach ( $lead_data as $index => $data ) {
-								if ( !is_numeric( $index ) || !$data ) continue;
-								$field = RGFormsModel::get_field( $form, $index );
-								$report .= "{$field['label']}:\t$data\n";
+								foreach ( $lead_data as $index => $data ) {
+									if ( !is_numeric( $index ) || !$data ) continue;
+									$field = RGFormsModel::get_field( $form, $index );
+									$report .= "{$field['label']}:\t$data\n";
+								}
 							}
-						}
-
-						/* If no new entries (and user has opted to receive digests always)*/
-						if (!$form['leads']){
-							$report .= __('No new entries.', self::$textdomain);
-							$report .= "\n--\n";
 						}
 					}
 
