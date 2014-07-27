@@ -27,9 +27,6 @@
 			if ( !isset( $_GET['page']) || $_GET['page'] != 'gf_edit_forms' )
 				return; // Nothing else to do, we're not on the setting page
 
-			if ( !isset( $_GET['view'] ) || ( $_GET['view'] != 'notification' && $_GET['view'] != 'settings' ) )
-				return; // Same as above, nothing to be done
-
 			add_action( 'init', array( $this, 'init' ) );
 			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
 		}
@@ -172,12 +169,14 @@
 			$digest_emails = isset( $_POST['form_notification_digest_emails'] ) ? $_POST['form_notification_digest_emails'] : '';
 			$digest_interval = isset( $_POST['form_notification_digest_interval'] ) ? $_POST['form_notification_digest_interval'] : '';
 			$digest_group = isset( $_POST['form_notification_digest_group'] ) ? $_POST['form_notification_digest_group'] : '';
+			$digest_report_always = isset( $_POST['form_notification_digest_report_always'] ) ? $_POST['form_notification_digest_report_always'] : '';
 			
 			$form['digests']['enable_digest'] = true;
 			$form['digests']['digest_emails'] = array_map( 'trim', explode( ',', $digest_emails ) );
 
 			$form['digests']['digest_interval'] = $digest_interval;
 			$form['digests']['digest_group'] = $digest_group;
+			$form['digests']['digest_report_always'] = $digest_report_always;
 
 			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
 				/* Seems like 1.7 really messed up the meta structure */
@@ -207,6 +206,7 @@
 			$digest_emails = ( $digest_emails ) ? implode( ',', $digest_emails ) : '';
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
+			$digest_report_always = isset( $form['digests']['digest_report_always'] ) ? $form['digests']['digest_report_always'] : false;
 
 			$next = wp_next_scheduled( 'gf_digest_send_notifications', array( intval( $form_id ) ) );
 			if ( $next ) $next = 'next scheduled in ' . ( $next - time() ) . ' seconds';
@@ -237,7 +237,9 @@
 							<label for="form_notification_digest_group">Group<a href="#" onclick="return false;" class="tooltip tooltip_notification_digest_group" tooltip="<h6>Digest Group</h6>We will try and group forms with the same interval into one e-mail, leave blank for no grouping. Can be a number or keyword.">(?)</a></label>
 							<input type="text" name="form_notification_digest_group" id="form_notification_digest_group" value="<?php echo esc_attr( $digest_group ); ?>">
 							<p>Note that digest grouping will only work for members of a group with same intervals set. For example, forms with hourly digests in group 'sales' will be bound together, daily digests in group 'sales' will be bound together. So if you want to see two form digests in one e-mail set the same interval and the same group for the two forms. You may also receive out of band reports once after having changed groups or intervals.</p>
-
+							<input type="checkbox" name="form_notification_digest_report_always" id="form_notification_digest_report_always" value="1" <?php checked( $digest_report_always ); ?> /> <label for="form_notification_digest_report_always"><?php _e("Generate digest report even if there are no new entries.", self::$textdomain); ?></label>
+							<br>
+							<br>
 							<code><?php echo $next; ?></code>
 							<code><?php echo $last; ?></code>
 						</div>
@@ -261,6 +263,7 @@
 
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
+			$digest_report_always = isset( $form['digests']['digest_report_always'] ) ? $form['digests']['digest_report_always'] : false;
 
 			$forms = array( $form['id'] => $form );
 			if ( $digest_group ) {
@@ -295,11 +298,14 @@
 				$leads_table = RGFormsModel::get_lead_table_name();
 				$leads = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $leads_table WHERE form_id = %d AND id > %d AND status = 'active';", $form['id'], $last_sent ) );
 
-				if ( !sizeof( $leads ) ) continue; // Nothing to report on
-
-				/* Update the reported id counter */
-				$form['digests']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
-
+				if ( !sizeof( $leads ) ){
+					if(!$digest_report_always){
+						continue; // Nothing to report on
+					}
+				} else {
+					/* Update the reported id counter */
+					$form['digests']['digest_last_sent'] = $leads[sizeof($leads) - 1]->id;
+				}
 				if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
 					/* Seems like 1.7 really messed up the meta structure */
 					unset( $form['notifications'] );
@@ -411,6 +417,12 @@
 								$field = RGFormsModel::get_field( $form, $index );
 								$report .= "{$field['label']}:\t$data\n";
 							}
+						}
+
+						/* If no new entries (and user has opted to receive digests always)*/
+						if (!$form['leads']){
+							$report .= __('No new entries.', self::$textdomain);
+							$report .= "\n--\n";
 						}
 					}
 
