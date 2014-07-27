@@ -27,9 +27,6 @@
 			if ( !isset( $_GET['page']) || $_GET['page'] != 'gf_edit_forms' )
 				return; // Nothing else to do, we're not on the setting page
 
-			if ( !isset( $_GET['view'] ) || ( $_GET['view'] != 'notification' && $_GET['view'] != 'settings' ) )
-				return; // Same as above, nothing to be done
-
 			add_action( 'init', array( $this, 'init' ) );
 			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
 		}
