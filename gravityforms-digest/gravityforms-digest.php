@@ -207,6 +207,7 @@
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
 			$digest_report_always = isset( $form['digests']['digest_report_always'] ) ? $form['digests']['digest_report_always'] : false;
+		$digest_export_fields = isset( $form['digests']['digest_export_fields'] ) ? $form['digests']['digest_export_fields'] : false;
 
 			$next = wp_next_scheduled( 'gf_digest_send_notifications', array( intval( $form_id ) ) );
 			if ( $next ) $next = 'next scheduled in ' . ( $next - time() ) . ' seconds';
@@ -239,6 +240,20 @@
 							<p>Note that digest grouping will only work for members of a group with same intervals set. For example, forms with hourly digests in group 'sales' will be bound together, daily digests in group 'sales' will be bound together. So if you want to see two form digests in one e-mail set the same interval and the same group for the two forms. You may also receive out of band reports once after having changed groups or intervals.</p>
 							<input type="checkbox" name="form_notification_digest_report_always" id="form_notification_digest_report_always" value="1" <?php checked( $digest_report_always ); ?> />
 							<label for="form_notification_digest_report_always"><?php _e( 'Generate digest report even if there are no new entries.', self::$textdomain ); ?></label>
+							<br>
+					<br>
+					<label for="form_notification_digest_export_fields">Export:</label>
+					<br>
+							<select id="form_notification_digest_export_fields" name="form_notification_digest_export_fields" onchange="if(jQuery(this).find(':selected').val() === 'specified') {jQuery('#form_notification_digest_fieldlist_container').show('fast');} else {jQuery('#form_notification_digest_fieldlist_container').hide('fast');};">
+								<option value="all" <?php selected( $digest_export_fields, 'all' ); ?>>All fields</option>
+								<option value="specified" <?php selected( $digest_export_fields, 'specified' ); ?>>Specified fields only</option>
+							</select>
+							<br>
+
+							<div id="form_notification_digest_fieldlist_container" style="display:<?php echo ($digest_export_fields == 'specified') ? "block" : "none"?>;">
+								<p>test</p>
+							</div>
+
 							<p>
 								<?php if ( $next ): ?><code><?php echo esc_html( $next ); ?></code><?php endif; ?>
 								<?php if ( $last ): ?><code><?php echo esc_html( $last ); ?></code><?php endif; ?>
