@@ -170,13 +170,25 @@
 			$digest_interval = isset( $_POST['form_notification_digest_interval'] ) ? $_POST['form_notification_digest_interval'] : '';
 			$digest_group = isset( $_POST['form_notification_digest_group'] ) ? $_POST['form_notification_digest_group'] : '';
 			$digest_report_always = isset( $_POST['form_notification_digest_report_always'] ) ? $_POST['form_notification_digest_report_always'] : '';
+			$digest_export_all_fields = ( $_POST['form_notification_digest_export_fields'] == 'specified' ) ? false : true;
+			$digest_export_field_list = array();
 			
+			if (!$digest_export_all_fields){
+				foreach($form['fields'] as $field){
+					if($_POST['form_notification_digest_field_'.$field['id']]){
+						$digest_export_field_list[] = $field['id'];
+					}
+				}
+			}
+
 			$form['digests']['enable_digest'] = true;
 			$form['digests']['digest_emails'] = array_map( 'trim', explode( ',', $digest_emails ) );
 
 			$form['digests']['digest_interval'] = $digest_interval;
 			$form['digests']['digest_group'] = $digest_group;
 			$form['digests']['digest_report_always'] = $digest_report_always;
+			$form['digests']['digest_export_all_fields'] = $digest_export_all_fields;
+			$form['digests']['digest_export_field_list'] = $digest_export_field_list;
 
 			if ( version_compare( GFCommon::$version, '1.7' ) >= 0 ) {
 				/* Seems like 1.7 really messed up the meta structure */
@@ -207,7 +219,8 @@
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
 			$digest_report_always = isset( $form['digests']['digest_report_always'] ) ? $form['digests']['digest_report_always'] : false;
-			$digest_export_fields = isset( $form['digests']['digest_export_fields'] ) ? $form['digests']['digest_export_fields'] : false;
+			$digest_export_all_fields = isset( $form['digests']['digest_export_all_fields'] ) ? $form['digests']['digest_export_all_fields'] : true;
+			$digest_export_field_list = isset( $form['digests']['digest_export_field_list'] ) ? $form['digests']['digest_export_field_list'] : array();
 
 			$next = wp_next_scheduled( 'gf_digest_send_notifications', array( intval( $form_id ) ) );
 			if ( $next ) $next = 'next scheduled in ' . ( $next - time() ) . ' seconds';
@@ -245,19 +258,15 @@
 							<label for="form_notification_digest_export_fields">Export:</label>
 							<br>
 							<select id="form_notification_digest_export_fields" name="form_notification_digest_export_fields" onchange="if(jQuery(this).find(':selected').val() === 'specified') {jQuery('#form_notification_digest_fieldlist_container').show('fast');} else {jQuery('#form_notification_digest_fieldlist_container').hide('fast');};">
-								<option value="all" <?php selected( $digest_export_fields, 'all' ); ?>>All fields</option>
-								<option value="specified" <?php selected( $digest_export_fields, 'specified' ); ?>>Specified fields only</option>
+								<option value="all" <?php selected($digest_export_all_fields); ?>>All fields</option>
+								<option value="specified" <?php selected(!$digest_export_all_fields); ?>>Specified fields only</option>
 							</select>
 							<br>
 
-							<?php $digest_export_fields_list = array(1,2,3); ?>
-							<div id="form_notification_digest_fieldlist_container" style="display:<?php echo ($digest_export_fields == 'specified') ? "block" : "none"?>;">
-								<?php foreach( $digest_export_fields_list as $key => $field ): ?>
-									<?php $name = $key ?>
-									<?php $description = 'description'?>
-									<?php $checked = false ?>
-									<input type="checkbox" name="<?php echo $name ?>" id="<?php echo $name ?>" value="1" <?php checked( $checked ); ?> />
-									<label for="<?php echo $name ?>"><?php echo $description ?></label>
+							<div id="form_notification_digest_fieldlist_container" style="display:<?php echo (!$digest_export_all_fields) ? "block" : "none"?>;">
+								<?php foreach( $form['fields'] as $field ): ?>
+									<input type="checkbox" name="form_notification_digest_field_<?php echo $field['id'] ?>" id="form_notification_digest_field_<?php echo $field['id'] ?>" value="1" <?php checked( in_array($field['id'], $digest_export_field_list) ); ?> />
+									<label for="form_notification_digest_field_<?php echo $field['id'] ?>"><?php echo $field['label'] ?></label>
 									<br>
 								<?php endforeach; ?>
 							</div>
@@ -288,6 +297,8 @@
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 			$digest_report_always = isset( $form['digests']['digest_report_always'] ) ? $form['digests']['digest_report_always'] : false;
+			$digest_export_all_fields = isset( $form['digests']['digest_export_all_fields'] ) ? $form['digests']['digest_export_all_fields'] : true;
+			$digest_export_field_list = isset( $form['digests']['digest_export_field_list'] ) ? $form['digests']['digest_export_field_list'] : array();
 
 			$forms = array( $form['id'] => $form );
 			if ( $digest_group ) {
@@ -367,10 +378,16 @@
 
 						$headers = array( 'Date Submitted' );
 
+						if ($digest_export_all_fields){
 						foreach( $form['fields'] as $field )
 							if ( $field['label'] ) $headers []= $field['label'];
+						} else{
+							foreach( $form['fields'] as $field )
+								if ( $field['label'] && in_array($field['id'], $digest_export_field_list) ) $headers []= $field['label'];
+						}
 
 						fputcsv( $csv, $headers );
+
 
 						if ( !$form['leads'] ) {
 							/* No new entries (but user has opted to receive digests always) */
@@ -389,7 +406,13 @@
 
 								foreach( $form['fields'] as $field ) {
 									if ( !$field['label'] ) continue;
-									$data []= RGFormsModel::get_lead_field_value( $lead_data, $field );
+									if ( !$digest_export_all_fields && !in_array($field['id'],$digest_export_field_list) ) continue;
+									$raw_data = RGFormsModel::get_lead_field_value( $lead_data, $field );
+									if(!is_array($raw_data)){
+										$data []= $raw_data;
+									} else {
+										$data []= implode(', ', array_filter($raw_data));
+									}
 								}
 
 								fputcsv( $csv, $data );
@@ -449,6 +472,7 @@
 
 								foreach ( $lead_data as $index => $data ) {
 									if ( !is_numeric( $index ) || !$data ) continue;
+									if ( !$digest_export_all_fields && !in_array(floor($index),$digest_export_field_list) ) continue;
 									$field = RGFormsModel::get_field( $form, $index );
 									$report .= "{$field['label']}:\t$data\n";
 								}
