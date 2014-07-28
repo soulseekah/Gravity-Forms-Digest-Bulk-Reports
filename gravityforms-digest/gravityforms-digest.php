@@ -207,7 +207,7 @@
 			$digest_interval = isset( $form['digests']['digest_interval'] ) ? $form['digests']['digest_interval'] : false;
 			$digest_group = isset( $form['digests']['digest_group'] ) ? $form['digests']['digest_group'] : false;
 			$digest_report_always = isset( $form['digests']['digest_report_always'] ) ? $form['digests']['digest_report_always'] : false;
-		$digest_export_fields = isset( $form['digests']['digest_export_fields'] ) ? $form['digests']['digest_export_fields'] : false;
+			$digest_export_fields = isset( $form['digests']['digest_export_fields'] ) ? $form['digests']['digest_export_fields'] : false;
 
 			$next = wp_next_scheduled( 'gf_digest_send_notifications', array( intval( $form_id ) ) );
 			if ( $next ) $next = 'next scheduled in ' . ( $next - time() ) . ' seconds';
@@ -241,17 +241,25 @@
 							<input type="checkbox" name="form_notification_digest_report_always" id="form_notification_digest_report_always" value="1" <?php checked( $digest_report_always ); ?> />
 							<label for="form_notification_digest_report_always"><?php _e( 'Generate digest report even if there are no new entries.', self::$textdomain ); ?></label>
 							<br>
-					<br>
-					<label for="form_notification_digest_export_fields">Export:</label>
-					<br>
+							<br>
+							<label for="form_notification_digest_export_fields">Export:</label>
+							<br>
 							<select id="form_notification_digest_export_fields" name="form_notification_digest_export_fields" onchange="if(jQuery(this).find(':selected').val() === 'specified') {jQuery('#form_notification_digest_fieldlist_container').show('fast');} else {jQuery('#form_notification_digest_fieldlist_container').hide('fast');};">
 								<option value="all" <?php selected( $digest_export_fields, 'all' ); ?>>All fields</option>
 								<option value="specified" <?php selected( $digest_export_fields, 'specified' ); ?>>Specified fields only</option>
 							</select>
 							<br>
 
+							<?php $digest_export_fields_list = array(1,2,3); ?>
 							<div id="form_notification_digest_fieldlist_container" style="display:<?php echo ($digest_export_fields == 'specified') ? "block" : "none"?>;">
-								<p>test</p>
+								<?php foreach( $digest_export_fields_list as $key => $field ): ?>
+									<?php $name = $key ?>
+									<?php $description = 'description'?>
+									<?php $checked = false ?>
+									<input type="checkbox" name="<?php echo $name ?>" id="<?php echo $name ?>" value="1" <?php checked( $checked ); ?> />
+									<label for="<?php echo $name ?>"><?php echo $description ?></label>
+									<br>
+								<?php endforeach; ?>
 							</div>
 
 							<p>
