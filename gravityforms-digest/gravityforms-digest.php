@@ -3,7 +3,7 @@
 		Plugin Name: Gravity Forms Digest Bulk Reports
 		Author: Gennady Kovshenin
 		Description: Generates bulk reports for submitted form entries and e-mails these as a digest to specific addresses
-		Version: 0.2.1
+		Version: 0.3.0
 		Author URI: http://codeseekah.com
 	*/
 
