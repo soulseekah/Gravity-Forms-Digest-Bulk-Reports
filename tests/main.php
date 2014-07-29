@@ -49,6 +49,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'minute';
 			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init(); // TODO: A better way to add
 
@@ -70,6 +71,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'minute';
 			$_POST['form_notification_digest_group'] = 'sales';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init(); // TODO: A better way to add
 
@@ -82,6 +84,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'minute';
 			$_POST['form_notification_digest_group'] = 'sales';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init(); // TODO: A better way to add
 
@@ -102,6 +105,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'hourly';
 			$_POST['form_notification_digest_group'] = 'sales';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init(); // TODO: A better way to add
 
@@ -128,6 +132,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'minute';
 			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init();
 
@@ -156,6 +161,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'minute';
 			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init(); // TODO: A better way to add
 
@@ -186,6 +192,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'minute';
 			$_POST['form_notification_digest_group'] = 'sales';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init(); // TODO: A better way to add
 
@@ -198,6 +205,7 @@
 			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo, out@digests.lo';
 			$_POST['form_notification_digest_interval'] = 'minute';
 			$_POST['form_notification_digest_group'] = 'sales';
+			$_POST['form_notification_digest_export_fields'] = 'all';
 
 			$this->digest->init(); // TODO: A better way to add
 
@@ -228,7 +236,7 @@
 			$this->assertEquals( count( $phpmailer->mock_sent ), 3 );
 
 			/* Let's take a look here... (should be in a test of its own) */
-			preg_match( '#filename="(.*)"#', $phpmailer->mock_sent[0]['body'], $matches );
+			preg_match( '#filename="?(.*\.csv)"?#', $phpmailer->mock_sent[0]['body'], $matches );
 			$filename = sys_get_temp_dir() . '/' . $matches[1];
 			$csv = fopen( $filename, 'rb' );
 			$this->assertEquals( fgetcsv( $csv ), array( 'Form: Test Form (#1)' ) );
