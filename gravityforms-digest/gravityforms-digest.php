@@ -366,7 +366,14 @@
 
 								foreach( $form['fields'] as $field ) {
 									if ( !$field['label'] ) continue;
-									$data []= RGFormsModel::get_lead_field_value( $lead_data, $field );
+									
+									$raw_data = RGFormsModel::get_lead_field_value( $lead_data, $field );
+									if(!is_array($raw_data)){
+										$data []= $raw_data;
+									} else {
+										$data []= implode(', ', array_filter($raw_data));
+									}
+									
 								}
 
 								fputcsv( $csv, $data );
