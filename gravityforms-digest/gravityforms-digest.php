@@ -175,7 +175,7 @@
 
 			if ( !$digest_export_all_fields ) {
 				foreach ( $form['fields'] as $field ) {
-					if ( $_POST['form_notification_digest_field_' . $field['id']] ) {
+					if ( isset( $_POST['form_notification_digest_field_'.$field['id']] ) && $_POST['form_notification_digest_field_'.$field['id']]) {
 						$digest_export_field_list[] = $field['id'];
 					}
 				}
