@@ -431,7 +431,7 @@
 					fclose( $csv );
 					$new_csv_attachment = $csv_attachment . '-' . date( 'YmdHis' ) . '.csv';
 					rename( $csv_attachment, $new_csv_attachment );
-					
+
 					wp_mail(
 						$email,
 						apply_filters(
