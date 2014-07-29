@@ -1,28 +1,16 @@
 language: php
 
 php:
-    - 5.3
     - 5.4
     - 5.5
+    - 5.6
 env:
-    - WP_VERSION=3.6.1 GFVERSION=1.6.12
-    - WP_VERSION=3.7.1 GFVERSION=1.6.12
-    - WP_VERSION=3.9.1 GFVERSION=1.6.12
-
-    - WP_VERSION=3.6.1 GFVERSION=1.7.3
-    - WP_VERSION=3.7.1 GFVERSION=1.7.3
-    - WP_VERSION=3.9.1 GFVERSION=1.7.3
-
-    - WP_VERSION=3.6.1 GFVERSION=1.8
-    - WP_VERSION=3.7.1 GFVERSION=1.8
-    - WP_VERSION=3.9.1 GFVERSION=1.8
+    - WP_VERSION=latest GFVERSION=1.8
 
 before_script:
     - wget https://raw.github.com/wp-cli/sample-plugin/master/bin/install-wp-tests.sh
     - export WP_TESTS_DIR=wordpress
     - bash install-wp-tests.sh wordpress root '' localhost $WP_VERSION
-    - cd wordpress && wget "http://core.trac.wordpress.org/raw-attachment/ticket/24800/24800.2.diff"
-    - cd ..
     - wget "http://codeseekah.com/etc/gravityforms_$GFVERSION.zip" -O /tmp/gravityforms.zip
     - cd /tmp/wordpress/wp-content/plugins && unzip /tmp/gravityforms.zip
     - cd - && cd wordpress
