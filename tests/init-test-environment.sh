@@ -36,7 +36,7 @@ sed -i "s/yourpasswordhere/$DB_PASS/" wp-tests-config.php
 sed -i "s|localhost|${DB_HOST}|" wp-tests-config.php
 
 cd ../wordpress/wp-content/plugins/
-wget http://codeseekah.com/etc/gravityforms_${GFVERSION:-1.7.3}.zip -O gravityforms.zip
+wget http://codeseekah.com/etc/gravityforms_${GFVERSION:-1.8}.zip -O gravityforms.zip
 unzip gravityforms.zip
 
 cd -
