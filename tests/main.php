@@ -40,7 +40,7 @@
 		public function test_reschedule_existing_simple() {
 			wp_set_current_user( 1 );
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '1';
@@ -62,7 +62,7 @@
 		public function test_reschedule_existing_groups() {
 			wp_set_current_user( 1 );
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '1';
@@ -75,7 +75,7 @@
 
 			$this->digest->init(); // TODO: A better way to add
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '2';
@@ -96,7 +96,7 @@
 			$this->assertTrue( $schedule_1 == 'minute' || $schedule_2 == 'minute' );
 			$this->assertTrue( $schedule_1 xor $schedule_2 );
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '2';
@@ -123,7 +123,7 @@
 
 			wp_set_current_user( 1 );
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '1';
@@ -143,6 +143,7 @@
 			$this->assertEquals( $form['digests']['digest_emails'], array( 'testing@digests.lo','testing2@digests.lo' ) );
 			$this->assertEquals( $form['digests']['digest_interval'], 'minute' );
 			$this->assertEquals( $form['digests']['digest_group'], '' );
+			$this->assertEquals( $form['digests']['digest_export_all_fields'], true );
 
 			/* Assert that a cronjob has been scheduled */
 			$this->assertEquals( wp_get_schedule( 'gf_digest_send_notifications', array( 1 ) ), 'minute' );
@@ -152,7 +153,7 @@
 		public function test_email_notification_simple() {
 			wp_set_current_user( 1 );
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '2';
@@ -179,11 +180,225 @@
 			$this->assertEquals( count( $phpmailer->mock_sent ), 2 );
 		}
 
+		public function test_email_notification_not_report_always() {
+			wp_set_current_user( 1 );
+
+			/* Activate digests for a form */
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['save'] = true;
+			$_GET['id'] = '2';
+			$_POST['form_notification_digest_screen'] = true;
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
+			$_POST['form_notification_digest_interval'] = 'minute';
+			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
+			$_POST['form_notification_digest_report_always'] = false;
+
+			$this->digest->init(); // TODO: A better way to add
+
+			$_POST[] = array(); $_GET[] = array(); $null = null;
+			$_POST['input_1'] = 'Gary'; $_POST['input_2'] = 'yesterday';
+			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
+
+			global $phpmailer;
+
+			// Send 1st set of emails
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 2, count( $phpmailer->mock_sent ) );
+
+			// 2nd attempt to send emails (additional email should NOT be sent)
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 2, count( $phpmailer->mock_sent ) );
+		}
+
+		public function test_email_notification_report_always() {
+			wp_set_current_user( 1 );
+
+			/* Activate digests for a form */
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['save'] = true;
+			$_GET['id'] = '2';
+			$_POST['form_notification_digest_screen'] = true;
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['form_notification_digest_emails'] = 'testing@digests.lo, testing2@digests.lo';
+			$_POST['form_notification_digest_interval'] = 'minute';
+			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
+			$_POST['form_notification_digest_report_always'] = true;
+
+			$this->digest->init(); // TODO: A better way to add
+
+			$_POST[] = array(); $_GET[] = array(); $null = null;
+			$_POST['input_1'] = 'Gary'; $_POST['input_2'] = 'yesterday';
+			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
+
+			global $phpmailer;
+
+			// Send 1st set of emails
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 2, count( $phpmailer->mock_sent ) );
+
+			// Send 2nd set of emails
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 4, count( $phpmailer->mock_sent ) );
+		}
+
+		public function test_plaintext_filter_off() {
+			wp_set_current_user( 1 );
+
+			/* Activate digests for a form */
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['save'] = true;
+			$_GET['id'] = '2';
+			$_POST['form_notification_digest_screen'] = true;
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['form_notification_digest_emails'] = 'testing@digests.lo';
+			$_POST['form_notification_digest_interval'] = 'minute';
+			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
+
+			$this->digest->init(); // TODO: A better way to add
+
+			$_POST[] = array(); $_GET[] = array(); $null = null;
+			$_POST['input_1'] = 'Gary'; $_POST['input_2'] = 'yesterday';
+			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
+
+			global $phpmailer;
+
+			// Send plaintext email
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 1, count( $phpmailer->mock_sent ) );
+			foreach ($phpmailer->mock_sent as $mail){
+				$this->assertContains('The Name:', $mail['body']);
+				$this->assertContains('Gary', $mail['body']);
+				$this->assertContains('The Day:', $mail['body']);
+				$this->assertContains('yesterday', $mail['body']);
+			}
+		}
+
+		public function test_plaintext_filter_on() {
+			wp_set_current_user( 1 );
+
+			/* Activate digests for a form */
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['save'] = true;
+			$_GET['id'] = '2';
+			$_POST['form_notification_digest_screen'] = true;
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['form_notification_digest_emails'] = 'testing@digests.lo';
+			$_POST['form_notification_digest_interval'] = 'minute';
+			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'specified';
+			$_POST['form_notification_digest_field_1'] = true;
+			$_POST['form_notification_digest_field_2'] = false;
+
+			$this->digest->init(); // TODO: A better way to add
+
+			$_POST[] = array(); $_GET[] = array(); $null = null;
+			$_POST['input_1'] = 'Gary'; $_POST['input_2'] = 'yesterday';
+			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
+
+			global $phpmailer;
+
+			// Send plaintext email
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 1, count( $phpmailer->mock_sent ) );
+			foreach ($phpmailer->mock_sent as $mail){
+				$this->assertContains('The Name:', $mail['body']);
+				$this->assertContains('Gary', $mail['body']);
+				$this->assertNotContains('The Day:', $mail['body']);
+				$this->assertNotContains('yesterday', $mail['body']);
+			}
+		}
+
+		public function test_enable_csv_mode() {
+			/* Enable CSV mode */
+			define( 'GF_DIGESTS_AS_CSV', true );
+		}
+
+		public function test_csv_filter_off() {
+			return;
+			wp_set_current_user( 1 );
+			/* Activate digests for a form */
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['save'] = true;
+			$_GET['id'] = '2';
+			$_POST['form_notification_digest_screen'] = true;
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['form_notification_digest_emails'] = 'testing@digests.lo';
+			$_POST['form_notification_digest_interval'] = 'minute';
+			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
+
+			$this->digest->init(); // TODO: A better way to add
+
+			$_POST[] = array(); $_GET[] = array(); $null = null;
+			$_POST['input_1'] = 'Gary'; $_POST['input_2'] = 'yesterday';
+			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
+
+			global $phpmailer;
+
+			// Send 1st set of emails
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 1, count( $phpmailer->mock_sent ) );
+
+			/* Let's take a look here... (should be in a test of its own) */
+			preg_match( '#filename="?(.*\.csv)"?#', $phpmailer->mock_sent[0]['body'], $matches );
+			$filename = sys_get_temp_dir() . '/' . $matches[1];
+			$file_contents = file_get_contents ($filename);
+
+			$this->assertContains('The Name', $file_contents);
+			$this->assertContains('Gary', $file_contents);
+			$this->assertContains('The Day', $file_contents);
+			$this->assertContains('yesterday', $file_contents);
+		}
+
+		public function test_csv_filter_on() {
+			return;
+			wp_set_current_user( 1 );
+			/* Activate digests for a form */
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['save'] = true;
+			$_GET['id'] = '2';
+			$_POST['form_notification_digest_screen'] = true;
+			$_POST['form_notification_enable_digest'] = true;
+			$_POST['form_notification_digest_emails'] = 'testing@digests.lo';
+			$_POST['form_notification_digest_interval'] = 'minute';
+			$_POST['form_notification_digest_group'] = '';
+			$_POST['form_notification_digest_export_fields'] = 'all';
+			$_POST['form_notification_digest_export_fields'] = 'specified';
+			$_POST['form_notification_digest_field_1'] = true;
+			$_POST['form_notification_digest_field_2'] = false;
+
+			$this->digest->init(); // TODO: A better way to add
+
+			$_POST[] = array(); $_GET[] = array(); $null = null;
+			$_POST['input_1'] = 'Gary'; $_POST['input_2'] = 'yesterday';
+			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
+
+			global $phpmailer;
+
+			// Send 1st set of emails
+			$this->digest->send_notifications( 2 );
+			$this->assertEquals( 1, count( $phpmailer->mock_sent ) );
+
+			/* Let's take a look here... (should be in a test of its own) */
+			preg_match( '#filename="?(.*\.csv)"?#', $phpmailer->mock_sent[0]['body'], $matches );
+			$filename = sys_get_temp_dir() . '/' . $matches[1];
+			$file_contents = file_get_contents ($filename);
+
+			$this->assertContains('The Name', $file_contents);
+			$this->assertContains('Gary', $file_contents);
+			$this->assertNotContains('The Day', $file_contents);
+			$this->assertNotContains('yesterday', $file_contents);
+		}
+
 		/** Group notifications */
 		public function test_email_notification_groups() {
 			wp_set_current_user( 1 );
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '1';
@@ -196,7 +411,7 @@
 
 			$this->digest->init(); // TODO: A better way to add
 
-			/* Activate digetsts for a form */
+			/* Activate digests for a form */
 			$_POST['form_notification_enable_digest'] = true;
 			$_POST['save'] = true;
 			$_GET['id'] = '2';
@@ -219,9 +434,6 @@
 			$_POST[] = array(); $_GET[] = array(); $null = null;
 			$_POST['input_1'] = 'Larry'; $_POST['input_2'] = 'tomorrow';
 			RGFormsModel::save_lead( RGFormsModel::get_form_meta( 2 ), $null );
-
-			/* Enable CSV mode to allow us to parse the body */
-			define( 'GF_DIGESTS_AS_CSV', true );
 
 			/* Test the correct cron call */
 			do_action_ref_array( 'gf_digest_send_notifications', array( 1 ) );
