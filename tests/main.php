@@ -10,7 +10,15 @@
 			/* Activate GravityForms */
 			require_once WP_PLUGIN_DIR . '/gravityforms/gravityforms.php';
 			require_once WP_PLUGIN_DIR . '/gravityforms/export.php';
+
+			/* Something happened in newer versions, and we can't get the lead cache to initialize
+			properly, we need to do this manually */
+			global $_gform_lead_meta;
+			if ( $_gform_lead_meta === null )
+				$_gform_lead_meta = array();
+
 			GFForms::setup();
+			GFCache::flush();
 
 			/* Import some ready-made forms */
 			$this->assertEquals( GFExport::import_file( dirname( __FILE__ ) . '/forms.xml' ), 2 );
