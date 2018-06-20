@@ -7,10 +7,6 @@
 		public function setUp() {
 			parent::setUp();
 
-			/* Activate GravityForms */
-			require_once WP_PLUGIN_DIR . '/gravityforms/gravityforms.php';
-			require_once WP_PLUGIN_DIR . '/gravityforms/export.php';
-
 			/* Something happened in newer versions, and we can't get the lead cache to initialize
 			properly, we need to do this manually */
 			global $_gform_lead_meta;
