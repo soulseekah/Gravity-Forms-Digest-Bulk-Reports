@@ -1,19 +1,24 @@
 language: php
 
+dist: precise
+
 php:
+    - 5.3
     - 5.4
-    - 5.5
     - 5.6
+    - 7.1
+    - 7.2
 env:
-    - WP_VERSION=latest GFVERSION=1.8.9.12
+    - WP_VERSION=latest GFVERSION=2.2
+    - WP_VERSION=latest GFVERSION=2.3
 
 before_script:
     - wget https://raw.github.com/wp-cli/sample-plugin/master/bin/install-wp-tests.sh
     - export WP_TESTS_DIR=wordpress
     - bash install-wp-tests.sh wordpress root '' localhost $WP_VERSION
-    - wget "http://codeseekah.com/etc/gravityforms_$GFVERSION.zip" -O /tmp/gravityforms.zip
+    - wget "https://codeseekah.com/etc/gravityforms_$GFVERSION.zip" -O /tmp/gravityforms.zip
     - cd /tmp/wordpress/wp-content/plugins && unzip /tmp/gravityforms.zip
-    - cd - && cd wordpress
+    - cd -
 
 script:
-    - phpunit -c ../tests/
+    - phpunit --no-coverage
